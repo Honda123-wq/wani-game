@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waniwani Panic</title>
+    <style>
+        /* ゲーム全体のレイアウト */
+        .game-container {
+            width: 600px; 
+            height: 300px; /* 縦のサイズも指定 */
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* 4列で均等に配置 */
+            grid-template-rows: repeat(2, 1fr); /* 2行で均等に配置 */
+            margin: 50px auto; /* 中央寄せ */
+            gap: 2px; /* マス目の隙間調整 */
+            background-color: skyblue; /* 青枠 */
+        }
+        /* 文字（ワニワニパニックの赤い表示） */
+        .letter {
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            color: red;
+            text-align: center;
+            width: 100%;
+            top: 5px;  /* 文字の位置を調整 */
+        }
+        /* 穴（ワニが出てくる場所） */
+        .hole {
+            width: 140px; /* 枠の幅を調整 */
+            height: 140px; /* 縦のサイズを正しく設定 */
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: skyblue; /* 青系の穴の背景色 */
+            border: 4px solid darkblue; /* 穴の枠線を追加 */
+            border-radius: 12px; /* 丸みをつけて見栄えをよくする */
+            box-shadow: inset 0 3px 6px rgba(0,0,0,0.2); /* 穴の凹凸感を追加 */
+        }
+        .hole-text {
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2; /* 文字を前面に */
+        }
+
+        /* ワニの設定 */
+        .wani {
+            width: 100%; /* 枠より少し小さめに調整 */
+            height: 100%;
+            position: absolute;
+            bottom: -100%; /*  初期位置を枠の外に */
+            transition: bottom 0.2s ease-in-out; /*  出入りをスムーズに */
+        }
+        .wani img {
+            width: 100%; /*  枠にピッタリ合うように設定 */
+            height: auto; /* 自然な比率で表示 */
+            object-fit: contain; /* 画像の比率を保ちつつフィット */
+            display: block;
+        }
+        /* ワニが出たら文字を非表示 */
+        .hole .wani.show + .hole-text {
+            display: none;
+        }
+        .wani, .hole {
+            display: block; /* ワニと枠の表示 */
+        }
+        /* ワニが出てくる時の動き */
+        .wani.show {
+            bottom: 0;
+        }
+        .hole.hit{
+            background-color: darkgray; /* 叩いた瞬間、穴が暗くなる */
+            transition: background-color 0.2s ease-in-out;
+        }
+        body {
+            position: relative;/* ハンマーの基準を`body`にする */
+            overflow: hidden;/* 画面外にハンマーが行かないようにする */
+        }
+        .hammer {
+            position: absolute;
+            width: 100px;/* サイズ調整（適宜変更） */
+            height: 100px;
+            pointer-events: none;/* クリックを無効化（ゲームの動作を邪魔しない） */
+        }
+        /* スタート画面のスタイル */
+        #startScreen {
+            display: block;  /* ← ここを修正！ */
+            text-align: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: white; /* 画面を見やすくする */
+        }
+        .start-wani {
+            display: block;
+            margin: 20px auto;
+            width: 200px; /* 適宜調整 */
+        }
+        #gameScreen {
+            display: none;/* 最初は非表示 */
+            text-align: center;
+        }
+        #hammer {
+            position: absolute;
+            width: 100px; /* ハンマーのサイズ */
+            height: 100px;
+            pointer-events: none;/* クリック時を無効化（ゲーム動作の邪魔をしない */
+            transform: rotate(20deg);/* ハンマーを右に傾ける */
+            transition: transform 0.1s;/* クリック時にハンバーが動く */
+            z-index: 1000;/* ハンマーを最前面に */
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+    <h1>ワニワニパニック</h1>
+    <button id="startButton">START</button>
+    <img src="images/startwani.png" alt="スタートワニ" class="start-wani">
+    <audio id="startSound" src="sounds/start.mp3"></audio>
+    </div>
+
+    <div id="gameScreen" style="display: none;">
+    <h1>ワニワニパニック</h1>
+    <p>スコア:<span id="score">0</span></p>
+    <p>残り時間: <span id="timer">30</span>秒</p>
+    <div class="game-container">
+        <div class="hole">
+            <div class="wani" style="display: none;"></div>
+            <span class="hole-text">ワ</span>
+        </div>
+        
+        <div class="hole">
+            <div class="wani" style="display: none;"></div>
+            <span class="hole-text">ニ</span>
+        </div>
+        
+        <div class="hole">
+            <div class="wani" style="display: none;"></div>
+            <span class="hole-text">ワ</span>
+        </div>
+        
+        <div class="hole">
+            <div class="wani" style="display: none;"></div>
+            <span class="hole-text">ニ</span>
+        </div>
+        
+        <div class="hole">
+            <div class="wani" style="display: none;"></div>
+            <span class="hole-text">パ</span>
+        </div>
+        
+        <div class="hole">
+            <div class="wani" style="display: none;"></div>
+            <span class="hole-text">ニ</span>
+        </div>
+        
+        <div class="hole">
+            <div class="wani" style="display: none;"></div>
+            <span class="hole-text">ッ</span>
+        </div>
+        
+        <div class="hole">
+            <div class="wani" style="display: none;"></div>
+            <span class="hole-text">ク</span>
+        </div>
+        
+    </div>
+
+    <div id="balloon" style="display:none; position:absolute; padding:8px 15px; background:white; border:3px solid #444; border-radius:10px; font-weight:bold; color:#333; z-index:5000;"></div>
+
+    <!-- ゲーム画面内の任意の位置に追加 -->
+    <div id="fukidashi" style="
+        display:none;
+        position:absolute;
+        padding:10px 15px;
+        background-color:#fff;
+        border:3px solid #555;
+        border-radius:10px;
+        color:#333;
+        font-weight:bold;
+        z-index:2000;
+        ">
+        </div>
+
+    <!-- <button onclick="startGame()">スタート</button> -->
+    <img id="hammer" src="./images/hammer.png" style="position: absolute; width:80px; height: 80px; pointer-events: none; display: none;">
+    <audio id="hitSound" src="sounds/piko.mp3" preload="auto"></audio>
+    <audio id="correctSound" src="sounds/correct.mp3" preload="auto" allow="autoplay"></audio>
+    <audio id="wrongSound" src="sounds/wrong.mp3" preload="auto" allow="autoplay"></audio>
+    <audio id="startSound" src="sounds/start.mp3" preload="auto" allow="autoplay"></audio>
+    <audio id="gameStartVoice" src="sounds/startkoe.mp3" preload="auto"></audio> <!-- ゲームスタートの声 -->
+    <audio id="gameEndVoice" src="sounds/owarikoe.mp3" preload="auto"></audio>   <!-- ゲーム終了の声 -->
+
+</div>
+    <script>
+    window.onload = () => {
+        const startButton = document.getElementById('startButton');
+        if(startButton) {
+            console.log("スタートボタンが見つかりました！");
+            
+            startButton.addEventListener('click', () => {
+                console.log("スタートボタンがクリックされました！");
+                
+                //  すべての音のミュート解除
+                document.querySelectorAll("audio").forEach(audio => {
+                audio.muted = false;
+            });
+
+                document.getElementById('startScreen').style.display = 'none';
+                document.getElementById('gameScreen').style.display = 'block';
+                document.getElementById('hammer').style.display = 'block';
+                playSound("startSound"); //  ユーザー操作時に確実に音を鳴らす
+                startGame();
+            });
+            // ページを開いた瞬間に「ワニワニパニック」の声を再生する
+        playSound("startSound"); 
+        }else{
+        console.log("⚠️ startButtonが見つかりません！");
+        }
+    };
+    //スコアとタイマー
+    let score = 0;
+    let timeLeft = 30;
+    let waniTimer;
+    let countDownTimer;
+    //音を再生する関数
+    function playSound(soundId) {
+        const sound = document.getElementById(soundId);
+        if (sound) {
+            sound.muted = false;//  確実にミュート解除！
+            sound.volume = 1.0; //  音量を最大に設定
+            sound.currentTime = 0; // 音を最初から再生
+            sound.play()
+            .then(() => console.log(`🔊 ${soundId} の音が再生されました！`))
+            .catch(e => {
+                console.log(`⚠️ 音声の再生エラー: ${e.message}`);
+                console.log("`play()`の失敗を検知！もう一度試します！");
+                setTimeout(()=>{
+                    sound.play().catch(e=>console.log(`再試行失敗:${e.message}`));
+                },500);
+            });
+        } else {
+            console.log(`⚠️ ${soundId} が見つかりません！`);
+        }
+    }
+
+
+    function startGame() {
+    // 自動再生ポリシーを回避するための処理（一瞬再生して停止）
+    ['correctSound', 'wrongSound', 'startSound'].forEach(id => {
+        const sound = document.getElementById(id);
+        if (sound) {
+            sound.muted = false;
+            sound.volume = 0.01;
+            sound.play().then(() => sound.pause());
+            sound.currentTime = 0;
+            sound.volume = 1.0;
+        }
+    });
+        score = 0;
+        timeLeft = 30;
+    document.getElementById("score").textContent = score;
+    document.getElementById("timer").textContent = timeLeft;
+
+        clearInterval(waniTimer);
+        clearInterval(countDownTimer);
+
+        // ワニを最初に一度表示
+        showWani();
+
+        // ワニを1.5秒ごとに再表示する
+    waniTimer = setInterval(showWani, 1500);
+
+        // タイマーを1秒ごとに減らす
+    countDownTimer = setInterval(countDown, 1000);
+        // ←ここを追加（ゲームスタート音声を再生）
+    playSound("gameStartVoice"); 
+    }
+
+    function showWani() {
+    const holes = document.querySelectorAll('.hole');
+
+    document.querySelectorAll('.wani').forEach(w => {
+        w.classList.remove('show');
+        w.style.display = 'none';
+        w.innerHTML = '';
+    });
+
+    const randomHole = holes[Math.floor(Math.random() * holes.length)];
+    let wani = randomHole.querySelector('.wani');
+    if (!wani) return;
+
+    let imageName;
+    if(Math.random() < 0.7){
+        imageName = "wani.png";
+        wani.dataset.type = "correct";
+        wani.dataset.animal = "ワニ";
+    }else{
+    if(Math.random() <0.5){
+        imageName = "wanigame.png";
+        wani.dataset.animal = "ワニガメ";
+    }else{
+        imageName = "iguana.png";
+        wani.dataset.animal = "イグアナ";
+    }
+    wani.dataset.type = "wrong";
+    }
+
+    wani.classList.add('show');
+    wani.style.display = 'block';
+    wani.innerHTML = `<img src="./images/${imageName}" alt="wani" class="wani-image" style="width:100%; height:100%; object-fit:cover;">`;
+    // ワニのクリックイベントを親要素（穴）に設定する方法
+    randomHole.onclick = function(event){
+        event.stopPropagation();
+
+        if (!wani.dataset.type) {
+            console.log("⚠️ ワニのタイプ未設定！");
+            return;
+        }
+
+        const waniType = wani.dataset.type;
+        if (waniType === "correct") {
+            score += 1;
+            playSound("correctSound");
+        } else if (waniType === "wrong") {
+            score = Math.max(0, score - 1);
+            playSound("wrongSound");
+
+            //クリック時に吹き出しを表示する処理をここに追加
+            showBalloon(event.clientX, event.clientY, `それは${wani.dataset.animal}だよ！`);
+        }
+
+        document.getElementById("score").textContent = score;
+
+        wani.classList.remove("show");
+        wani.style.display = "none";
+        wani.innerHTML = "";
+        wani.dataset.type = ""; // クリック後はタイプをリセット
+    };
+
+    // ワニを一定時間で自動非表示
+    setTimeout(() => {
+        wani.classList.remove('show');
+        wani.style.display = 'none';
+        wani.innerHTML = '';
+        wani.dataset.type = "";
+    }, 1000); //ワニの表示時間は1秒に延長（クリックしやすく）
+}
+
+
+function countDown() {
+    timeLeft--;
+    document.getElementById('timer').textContent = `${timeLeft}`;
+
+    if (timeLeft < 0) {
+        clearInterval(waniTimer);
+        clearInterval(countDownTimer);
+        playSound("gameEndVoice");
+
+        // 結果表示の処理を追加
+        showResultScreen(score);
+    }
+}
+
+// 結果画面表示関数を新しく追加する
+function showResultScreen(score) {
+    let message, image;
+
+    if (score >= 13) {
+        message = "天才！";
+        image = "images/tensai.webp";
+    } else if (score >= 10) {
+        message = "よく出来ました";
+        image = "images/yokudekimasita.webp";
+    } else if (score >= 7) {
+        message = "まぁまぁだね";
+        image = "images/mamadane.webp";
+    } else if (score >= 4) {
+        message = "全然ダメじゃん...";
+        image = "images/zennzendame.webp";
+    } else {
+        message = "やり直し！！";
+        image = "images/yarinaosi.webp";
+    }
+
+    document.getElementById("resultMessage").textContent = message;
+    document.getElementById("resultCharacter").src = image;
+
+    // 結果画面を表示
+    document.getElementById("resultScreen").style.display = "flex";
+    }
+
+    
+    //ハンマーをマウスに追従させる
+    document.addEventListener("mousemove", (event) => {
+    const hammer = document.getElementById("hammer");
+        if (hammer) {
+            hammer.style.display = "block"; // 確実に表示
+            hammer.style.left = `${event.clientX - 50}px`; // ハンマーの位置調整
+            hammer.style.top = `${event.clientY - 50}px`;
+        } else {
+            console.log("⚠️ ハンマーが見つかりません！");
+        }
+    });
+    //間違ったワニのコメント
+    function showBalloon(x, y, message){
+    const balloon = document.getElementById("balloon");
+        balloon.textContent = message;
+        balloon.style.left = (x + 20) + 'px';
+        balloon.style.top = (y - 50) + 'px';
+        balloon.style.display = 'block';
+
+    setTimeout(()=>{ balloon.style.display='none'; },1000);//1秒後消える
+}
+</script>
+    <!-- 結果表示画面 -->
+    <div id="resultScreen"
+        style=
+        "display:none; 
+        position:absolute; top:0; left:0; 
+        width:100%; 
+        height:100%; 
+        background-color: rgba(0,0,0,0.8); 
+        color: #fff; 
+        align-items:center; 
+        justify-content:center; 
+        flex-direction:column; z-index:9999;
+        ">
+    <img id="resultCharacter" src="" alt="結果キャラクター" style="width:200px; height:auto; margin-bottom:20px;">
+    <div id="resultMessage" style="
+        background-color:#fff; 
+        padding:10px 20px; 
+        border-radius:10px; 
+        color:#333; 
+        font-size:24px; font-weight:bold;
+        "></div>
+    <button onclick="location.reload();" style="
+        padding:10px 20px; margin-top:20px; 
+        border:none; border-radius:8px; 
+        background-color:#4CAF50; color:#fff; 
+        font-size:18px; cursor:pointer;
+        ">
+        もう一度遊ぶ
+    </button>
+    </div>
+
+</body>
+</html>
